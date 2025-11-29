@@ -2,204 +2,171 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<title>Telegram → WhatsApp Converter</title>
+<title>Telegram → WhatsApp Converter (Merge Multi-HTML)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
+  :root{--bg:#ffffff;--card:#fff;--text:#111;--muted:#666;--accent:#007bff}
+  [data-theme="dark"]{--bg:#0f1720;--card:#0b1220;--text:#e6eef8;--muted:#9fb0c9;--accent:#3ea1ff}
   body{
-    font-family: Arial, sans-serif; 
-    max-width:780px; 
-    margin:36px auto; 
-    padding:0 16px;
+    background:var(--bg);
+    color:var(--text);
+    font-family:Arial, sans-serif;
+    margin:0;
+    padding:0;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
   }
+  .wrapper{
+    width:100%;
+    max-width:680px;
+    padding:20px;
+    box-sizing:border-box;
+  }
+  .header{text-align:center;margin-bottom:18px}
   .card{
-    border:1px solid #e0e0e0; 
-    padding:20px; 
-    border-radius:10px; 
-    box-shadow:0 2px 6px rgba(0,0,0,.04)
+    background:var(--card);
+    padding:22px;
+    border-radius:14px;
+    box-shadow:0 6px 18px rgba(2,6,23,0.12);
   }
-  .row{margin:12px 0}
-  #loader{display:none}
-  #status{
-    white-space:pre-wrap; 
-    margin-top:10px; 
-    color:#333
-  }
-  button{
-    padding:9px 16px; 
-    border:none; 
-    background:#007bff; 
-    color:white; 
-    border-radius:5px; 
-    cursor:pointer; 
-    margin-right:8px;
-  }
-  button:hover{background:#005fcc}
-  input[type=text]{
-    padding:6px 10px; 
-    width:350px
-  }
-  input[type=file]{padding:6px}
-  label.small{
-    font-size:13px; 
-    color:#555
-  }
+  .row{margin:14px 0}
+  label.small{font-size:13px;color:var(--muted)}
+  input[type=text]{padding:10px 12px;width:100%;border-radius:8px;border:1px solid rgba(0,0,0,0.06);box-sizing:border-box}
+  input[type=file]{display:none}
+  .btn{padding:10px 14px;border-radius:8px;border:none;background:var(--accent);color:white;cursor:pointer;margin-right:8px}
+  #loader{display:none;margin-left:6px}
+  #status{white-space:pre-wrap;margin-top:12px;color:var(--muted);text-align:center}
+  .dropzone{border:2px dashed rgba(0,0,0,0.10);border-radius:10px;padding:24px;text-align:center;color:var(--muted)}
+  .dropzone.dragover{background:rgba(0,0,0,0.05);border-color:var(--accent);color:var(--text)}
+  .theme-toggle{background:transparent;border:1px solid rgba(0,0,0,0.20);padding:6px 10px;border-radius:8px;cursor:pointer;margin-top:10px}
+  .note{font-size:13px;color:var(--muted);margin-top:8px;text-align:center}
 </style>
 </head>
-<body>
-
-  <h2>Telegram HTML → WhatsApp TXT Converter</h2>
+<body data-theme="light">
+<div class="wrapper">
+  <div class="header">
+    <h2>Telegram HTML → WhatsApp TXT (Merge Multiple HTMLs)</h2>
+    <button id="themeBtn" class="theme-toggle">Dark Mode</button>
+  </div>
 
   <div class="card">
-
-    <!-- FILE INPUT -->
     <div class="row">
-      <input id="file" type="file" accept=".html"/>
+      <div id="drop" class="dropzone">
+        <div id="dropText">Drop Telegram HTML files here (multiple allowed), or <label for="fileInput" style="color:var(--accent);cursor:pointer">browse</label></div>
+        <input id="fileInput" type="file" accept=".html" multiple />
+      </div>
+      <div class="note">You can drop/upload 2 or more HTML export files. They will be merged by timestamp.</div>
     </div>
 
-    <!-- NAME INPUT -->
     <div class="row">
-      <label class="small">Nama file hasil (tanpa .txt):</label><br/>
+      <label class="small">Nama file hasil (.txt):</label><br/>
       <input type="text" id="filename" value="Chat Whatsapp dengan " />
     </div>
 
-    <!-- BUTTONS -->
     <div class="row">
-      <button id="btn">Convert & Download TXT</button>
-      <button id="btnZip">Convert & Encrypt ZIP</button>
+      <button id="btn" class="btn">Convert & Download TXT (Merge)</button>
+      <button id="btnZip" class="btn">Convert & Encrypt ZIP (Merge)</button>
       <span id="loader">⏳ Processing...</span>
     </div>
 
-    <!-- PASSWORD -->
     <div class="row">
       <label class="small">ZIP Password (opsional):</label><br/>
-      <input type="text" id="zipPass" placeholder="Ketik password jika ingin encrypt" />
+      <input type="text" id="zipPass" placeholder="password untuk ZIP" />
     </div>
 
-    <!-- STATUS AREA -->
     <div id="status"></div>
-
   </div>
+</div>
 
 <script>
-const fileInput = document.getElementById('file');
-const btn = document.getElementById('btn');
-const btnZip = document.getElementById('btnZip');
-const loader = document.getElementById('loader');
-const status = document.getElementById('status');
+(function(){
+  const body=document.body,themeBtn=document.getElementById('themeBtn');
+  const drop=document.getElementById('drop'),dropText=document.getElementById('dropText');
+  const fileInput=document.getElementById('fileInput');
+  const btn=document.getElementById('btn'),btnZip=document.getElementById('btnZip');
+  const loader=document.getElementById('loader'),status=document.getElementById('status');
+  const filenameInput=document.getElementById('filename');
+  let currentFiles = [];
 
-function setStatus(msg){
-  status.textContent = msg;
-}
-
-/* ============================
-   DOWNLOAD TXT 
-============================ */
-btn.addEventListener("click", async () => {
-  setStatus("");
-
-  const file = fileInput.files[0];
-  if(!file){
-    setStatus("Harap pilih file HTML Telegram (.html).");
-    return;
+  function setTheme(t){
+    body.setAttribute("data-theme",t);
+    themeBtn.textContent=t==="dark"?"Light Mode":"Dark Mode";
+    localStorage.setItem("theme",t);
   }
+  setTheme(localStorage.getItem("theme")||"light");
+  themeBtn.onclick=()=>setTheme(body.getAttribute("data-theme")==="light"?"dark":"light");
 
-  let filenameBase = document.getElementById("filename").value.trim();
-  const finalName = filenameBase ? (filenameBase + ".txt") : "converted_whatsapp.txt";
+  function setStatus(msg){ status.textContent=msg; }
 
-  loader.style.display = "inline";
-  btn.disabled = true;
+  drop.ondragover=e=>{ e.preventDefault(); drop.classList.add("dragover"); };
+  drop.ondragleave=()=>drop.classList.remove("dragover");
+  drop.ondrop=e=>{
+    e.preventDefault(); drop.classList.remove("dragover");
+    currentFiles = Array.from(e.dataTransfer.files);
+    dropText.textContent = currentFiles.length + " file(s) ready: " + currentFiles.map(f=>f.name).join(", ");
+  };
+  fileInput.onchange=()=>{
+    currentFiles = Array.from(fileInput.files);
+    dropText.textContent = currentFiles.length + " file(s) ready: " + currentFiles.map(f=>f.name).join(", ");
+  };
 
-  try {
-    let fd = new FormData();
-    fd.append("file", file);
-    fd.append("filename", finalName);
-
-    const resp = await fetch("/convert", { method:"POST", body:fd });
-
-    if(!resp.ok){
-      const txt = await resp.text();
-      setStatus("Error: " + txt);
-    } else {
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = finalName;
+  async function sendRequest(url, formData, dl){
+    loader.style.display="inline";
+    btn.disabled = btnZip.disabled = true;
+    try{
+      let r = await fetch(url, { method: "POST", body: formData });
+      if(!r.ok){
+        let txt = "";
+        try { txt = await r.text(); } catch(e){ txt = "unknown error"; }
+        setStatus("Error: " + txt);
+        return;
+      }
+      let blob = await r.blob();
+      let a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = dl;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
-
-      setStatus("Berhasil! File TXT berhasil diunduh: " + finalName);
+      URL.revokeObjectURL(a.href);
+      setStatus("Berhasil: " + dl);
+    }catch(err){
+      setStatus("Exception: " + err.toString());
+    } finally {
+      loader.style.display="none";
+      btn.disabled = btnZip.disabled = false;
     }
-
-  } catch(e){
-    setStatus("Error: " + e.toString());
-    console.error(e);
-
-  } finally {
-    loader.style.display = "none";
-    btn.disabled = false;
-  }
-});
-
-/* ============================
-   DOWNLOAD ZIP 
-============================ */
-btnZip.addEventListener("click", async () => {
-  setStatus("");
-
-  const file = fileInput.files[0];
-  if(!file){
-    setStatus("Harap pilih file HTML Telegram (.html).");
-    return;
   }
 
-  let filenameBase = document.getElementById("filename").value.trim();
-  const finalTxtName = filenameBase ? (filenameBase + ".txt") : "converted_whatsapp.txt";
-  const finalZipName = (filenameBase ? filenameBase : "converted_chat") + ".zip";
-
-  const password = document.getElementById("zipPass").value || "";
-
-  loader.style.display = "inline";
-  btnZip.disabled = true;
-
-  try {
+  btn.onclick=()=>{
+    if(!currentFiles || currentFiles.length===0){ setStatus("Pilih/drop minimal 1 file HTML terlebih dahulu."); return; }
+    let base = filenameInput.value.trim();
+    let txt = base ? base + ".txt" : "converted_whatsapp.txt";
     let fd = new FormData();
-    fd.append("file", file);
-    fd.append("password", password);
-    fd.append("filename", finalTxtName);
-
-    const resp = await fetch("/convert_zip", { method:"POST", body:fd });
-
-    if(!resp.ok){
-      const txt = await resp.text();
-      setStatus("Error: " + txt);
-    } else {
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = finalZipName;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-
-      setStatus("ZIP berhasil dibuat & diunduh: " + finalZipName);
+    for(let i=0;i<currentFiles.length;i++){
+      fd.append("file", currentFiles[i], currentFiles[i].name);
     }
+    fd.append("filename", txt);
+    sendRequest("/convert", fd, txt);
+  };
 
-  } catch(e){
-    setStatus("Error: " + e.toString());
-    console.error(e);
-
-  } finally {
-    loader.style.display = "none";
-    btnZip.disabled = false;
-  }
-});
+  btnZip.onclick=()=>{
+    if(!currentFiles || currentFiles.length===0){ setStatus("Pilih/drop minimal 1 file HTML terlebih dahulu."); return; }
+    let base = filenameInput.value.trim();
+    let txt = base ? base + ".txt" : "converted_whatsapp.txt";
+    let zip = base ? base + ".zip" : "converted_chat.zip";
+    let fd = new FormData();
+    for(let i=0;i<currentFiles.length;i++){
+      fd.append("file", currentFiles[i], currentFiles[i].name);
+    }
+    fd.append("filename", txt);
+    fd.append("password", document.getElementById('zipPass').value || "");
+    sendRequest("/convert_zip", fd, zip);
+  };
+})();
 </script>
-
 </body>
 </html>
+"""
